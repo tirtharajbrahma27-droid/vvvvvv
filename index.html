@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bonfire — Admin Dashboard</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=Orbitron:wght@600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* --- VARIABLES --- */
+    :root {
+      --bg: #0f172a; --bg-card: #1e293b; --text: #f1f5f9; --muted: #94a3b8;
+      --border: #334155; --accent: #6366f1; --good: #10b981; --warn: #f59e0b; --bad: #ef4444;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    [data-theme="light"] {
+      --bg: #f8fafc; --bg-card: #ffffff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --accent: #4f46e5;
+    }
+
+    /* --- ANIMATIONS --- */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-5px); } 100% { transform: translateY(0px); } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+    /* --- BASE --- */
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); transition: background 0.4s ease, color 0.4s ease; overflow-x: hidden; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; animation: fadeIn 0.8s ease; }
+
+    /* --- HEADER --- */
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: 20px; }
+    
+    .logo-container {
+      width: 70px; height: 70px; border-radius: 14px;
+      background: var(--bg-card); border: 2px solid var(--border);
+      display: flex; justify-content: center; align-items: center;
+      cursor: pointer; overflow: hidden; position: relative;
+      transition: all 0.3s var(--ease);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      animation: float 6s ease-in-out infinite;
+    }
+    .logo-container:hover { transform: scale(1.05) rotate(-2deg); border-color: var(--accent); }
+    .logo-container img { width: 100%; height: 100%; object-fit: contain; display: none; padding: 4px; }
+    .logo-placeholder { color: var(--muted); font-size: 9px; text-align: center; font-weight: 700; line-height: 1.2; }
+
+    .brand h1 { 
+      margin: 0; font-family: 'Orbitron', sans-serif; font-size: 2.8rem; letter-spacing: 2px;
+      background: linear-gradient(120deg, #f43f5e, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
+      animation: slideUp 0.6s var(--ease);
+    }
+
+    .actions { display: flex; gap: 10px; align-items: center; }
+
+    /* --- BUTTONS --- */
+    .btn { 
+      padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); 
+      cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; position: relative; overflow: hidden; font-size: 13px;
+    }
+    .btn:hover { background: var(--border); transform: translateY(-2px); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+    .btn.icon { padding: 10px; }
+
+    /* --- STATS --- */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .stat-card { 
+      background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); 
+      animation: slideUp 0.6s var(--ease); animation-fill-mode: backwards;
+    }
+    .stat-card:nth-child(1) { animation-delay: 0.1s; }
+    .stat-card:nth-child(2) { animation-delay: 0.2s; }
+    .stat-card:nth-child(3) { animation-delay: 0.3s; }
+    
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+    .stat-val { font-size: 26px; font-weight: 800; margin-top: 8px; }
+    .text-good { color: var(--good); } .text-warn { color: var(--warn); } .text-bad { color: var(--bad); }
+
+    /* --- TABS & TABLES --- */
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .tab { 
+      padding: 10px 24px; background: none; border: none; color: var(--muted); cursor: pointer; font-weight: 600; 
+      border-bottom: 3px solid transparent; transition: 0.3s; position: relative;
+    }
+    .tab.active { color: var(--accent); border-color: var(--accent); }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .toolbar { display: flex; justify-content: space-between; margin-bottom: 15px; }
+    .search-box { background: var(--bg-card); border: 1px solid var(--border); padding: 12px 16px; border-radius: 10px; color: var(--text); width: 280px; outline: none; transition: 0.3s; }
+    .search-box:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+
+    table { width: 100%; border-collapse: separate; border-spacing: 0 4px; min-width: 600px; }
+    th { text-align: left; padding: 12px 16px; color: var(--muted); font-size: 12px; }
+    td { padding: 16px; background: var(--bg-card); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); font-size: 14px; }
+    td:first-child { border-left: 1px solid var(--border); border-radius: 12px 0 0 12px; }
+    td:last-child { border-right: 1px solid var(--border); border-radius: 0 12px 12px 0; }
+    
+    tbody tr { animation: slideUp 0.5s var(--ease) forwards; opacity: 0; transform: translateY(20px); transition: transform 0.2s; }
+    tbody tr:hover { transform: scale(1.01); z-index: 2; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+
+    .pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .pill.done, .pill.given { background: rgba(16, 185, 129, 0.1); color: var(--good); border: 1px solid rgba(16, 185, 129, 0.2); }
+    .pill.part { background: rgba(245, 158, 11, 0.1); color: var(--warn); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .pill.due, .pill.not-given { background: rgba(239, 68, 68, 0.1); color: var(--bad); border: 1px solid rgba(239, 68, 68, 0.2); }
+
+    /* --- UNIFIED MODAL DESIGN --- */
+    .modal-overlay { 
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+      display: none; justify-content: center; align-items: center; z-index: 1000; 
+      opacity: 0; transition: opacity 0.3s ease;
+    }
+    .modal-overlay.open { display: flex; opacity: 1; }
+    
+    .modal-window {
+      background: var(--bg-card); 
+      width: 100%; max-width: 450px; 
+      border-radius: 18px; 
+      border: 1px solid var(--border);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+      transform: scale(0.95); transition: transform 0.3s var(--ease);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .modal-overlay.open .modal-window { transform: scale(1); animation: popIn 0.4s var(--ease); }
+
+    .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+    .modal-header h3 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
+    .modal-header p { margin: 5px 0 0; font-size: 13px; color: var(--muted); }
+
+    .modal-body { padding: 24px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
+    .form-control { 
+      width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); 
+      color: var(--text); border-radius: 10px; outline: none; transition: 0.3s; font-size: 14px; 
+    }
+    .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+    .form-control.error { border-color: var(--bad); animation: shake 0.4s ease; }
+
+    .modal-footer { 
+      padding: 16px 24px; border-top: 1px solid var(--border); 
+      background: rgba(0,0,0,0.2); display: flex; justify-content: flex-end; gap: 12px; 
+    }
+
+    /* --- HELPERS --- */
+    .admin-only { display: none !important; }
+    body.is-admin .admin-only { display: inline-flex !important; }
+    .status-ind { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(0,0,0,0.2); border-radius: 20px; font-size: 12px; border: 1px solid var(--border); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .status-ind.online .dot { background: var(--good); box-shadow: 0 0 10px var(--good); }
+
+    /* PRINT */
+    @media print {
+      body { background: white; color: black; }
+      .wrap { max-width: 100%; padding: 0; }
+      .stats, .tabs, .actions, .toolbar, .status-ind, .admin-only { display: none !important; }
+      header { border-bottom: 2px solid #000; margin-bottom: 20px; }
+      .brand h1 { -webkit-text-fill-color: black; color: black; background: none; font-size: 3rem; }
+      .panel { display: none; } .panel.active { display: block; }
+      table { border: 1px solid #ddd; border-collapse: collapse; }
+      th, td { border: 1px solid #ccc; background: white !important; padding: 8px; }
+      .pill { border: 1px solid #000; color: #000 !important; background: transparent !important; }
+      
+      /* HIDE PASS & ACTIONS COLUMNS */
+      .pass-col, .admin-only { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <!-- Hidden Input -->
+        <input type="file" id="logoInput" accept="image/*" style="display:none">
+        <!-- Logo Container -->
+        <div class="logo-container" id="logoArea" title="Upload Logo (Unlock first)">
+          <span id="logoText" class="logo-placeholder">CLICK TO<br>UPLOAD<br>LOGO</span>
+          <img id="logoImg" src="" alt="Bonfire Logo">
+        </div>
+        <h1>Bonfire</h1>
+      </div>
+      <div class="actions">
+        <div id="statusInd" class="status-ind offline"><span class="dot"></span><span id="statusTxt">Offline</span></div>
+        <button id="printBtn" class="btn icon" title="Print">🖨️</button>
+        <button id="themeBtn" class="btn icon" title="Theme">🌓</button>
+        <button id="lockBtn" class="btn" onclick="handleLockClick()">🔒 Locked</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Registrations</div><div class="stat-val text-good" id="val-reg">₹0</div></div>
+      <div class="stat-card"><div class="stat-label">Sponsors</div><div class="stat-val text-warn" id="val-spon">₹0</div></div>
+      <div class="stat-card"><div class="stat-label">Paid Out</div><div class="stat-val text-bad" id="val-paid">₹0</div></div>
+      <div class="stat-card"><div class="stat-label">Due Out</div><div class="stat-val" id="val-due">₹0</div></div>
+      <div class="stat-card"><div class="stat-label">Net Balance</div><div class="stat-val" id="val-net">₹0</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-target="registrations">Registrations</button>
+      <button class="tab" data-target="sponsors">Sponsors</button>
+      <button class="tab" data-target="expenditures">Expenditures</button>
+    </div>
+
+    <!-- Panel: Registrations -->
+    <section id="panel-registrations" class="panel active">
+      <div class="toolbar">
+        <input class="search-box" id="search-registrations" placeholder="Search name...">
+        <button class="btn primary admin-only" onclick="openModal('registrations')">+ New Registration</button>
+      </div>
+      <table>
+        <!-- Added pass-col class to header -->
+        <thead><tr><th>Name</th><th>Phone</th><th>Amount</th><th class="pass-col">Pass</th><th>Date</th><th class="admin-only">Actions</th></tr></thead>
+        <tbody id="tbody-registrations"></tbody>
+      </table>
+    </section>
+
+    <!-- Panel: Sponsors -->
+    <section id="panel-sponsors" class="panel">
+      <div class="toolbar">
+        <input class="search-box" id="search-sponsors" placeholder="Search sponsor...">
+        <button class="btn primary admin-only" onclick="openModal('sponsors')">+ New Sponsor</button>
+      </div>
+      <table>
+        <thead><tr><th>Organization</th><th>Contact</th><th>Amount</th><th>Date</th><th class="admin-only">Actions</th></tr></thead>
+        <tbody id="tbody-sponsors"></tbody>
+      </table>
+    </section>
+
+    <!-- Panel: Expenditures -->
+    <section id="panel-expenditures" class="panel">
+      <div class="toolbar">
+        <input class="search-box" id="search-expenditures" placeholder="Search item/vendor...">
+        <button class="btn primary admin-only" onclick="openModal('expenditures')">+ New Vendor/Item</button>
+      </div>
+      <table>
+        <thead><tr><th>Item / Vendor</th><th>Total Cost</th><th>Paid</th><th>Due</th><th>Status</th><th class="admin-only">Actions</th></tr></thead>
+        <tbody id="tbody-expenditures"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- 1. PASSWORD MODAL -->
+  <div id="passwordModal" class="modal-overlay">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3>Admin Access</h3>
+        <p>Please enter the password to unlock.</p>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="alertInput" class="form-control" placeholder="••••">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closePasswordModal()">Cancel</button>
+        <button class="btn primary" id="alertOkBtn">Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. ADD NEW MODAL -->
+  <div id="mainModal" class="modal-overlay">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add New</h3>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Content injected by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModals()">Cancel</button>
+        <button class="btn primary" id="modalSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ADD PAYMENT MODAL -->
+  <div id="payModal" class="modal-overlay">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3>Add Payment</h3>
+        <p id="payVendorName">Vendor Name</p>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>Amount</label><input type="number" id="payAmount" class="form-control"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="payDate" class="form-control"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModals()">Cancel</button>
+        <button class="btn primary" id="confirmPayBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. HISTORY MODAL -->
+  <div id="historyModal" class="modal-overlay">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3>History</h3>
+        <p id="histVendorName">Vendor Name</p>
+      </div>
+      <div class="modal-body">
+        <div style="max-height:250px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+          <table style="width:100%; min-width:auto;"><thead><tr><th>Date</th><th>Amount</th></tr></thead><tbody id="historyBody"></tbody></table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModals()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, push, remove, update, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // --- CONFIG ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBcQGOihxUoZWh_tTfbUi4Tt4sIxh4efA",
+      authDomain: "bonfire-8f9bf.firebaseapp.com",
+      databaseURL: "https://bonfire-8f9bf-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "bonfire-8f9bf",
+      storageBucket: "bonfire-8f9bf.firebasestorage.app",
+      messagingSenderId: "67923713842",
+      appId: "1:67923713842:web:dc3cd487b742351c50c12b",
+      measurementId: "G-JZZME7KNSL"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    
+    // --- STATE ---
+    const ADMIN_PASS = "9733";
+    let isUnlocked = false;
+    let data = { registrations: {}, sponsors: {}, expenditures: {} };
+    let currentExpId = null;
+
+    // --- HELPERS ---
+    const $ = (id) => document.getElementById(id);
+    const formatMoney = (n) => Number(n || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+    const today = () => new Date().toISOString().split('T')[0];
+
+    // --- CUSTOM POPUP LOGIC ---
+    window.handleLockClick = () => {
+      if(isUnlocked) {
+        isUnlocked = false;
+        document.body.classList.remove('is-admin');
+        $("lockBtn").innerHTML = "🔒 Locked";
+        $("lockBtn").style.borderColor = "var(--border)";
+      } else {
+        $("passwordModal").classList.add("open");
+        $("alertInput").value = "";
+        $("alertInput").focus();
+      }
+    };
+    
+    window.closePasswordModal = () => { $("passwordModal").classList.remove("open"); };
+    
+    $("alertOkBtn").onclick = () => {
+      if($("alertInput").value === ADMIN_PASS) {
+        isUnlocked = true;
+        document.body.classList.add('is-admin');
+        $("lockBtn").innerHTML = "🔓 Unlocked";
+        $("lockBtn").style.borderColor = "var(--good)";
+        closePasswordModal();
+      } else {
+        $("alertInput").classList.add("error");
+        setTimeout(()=>$("alertInput").classList.remove("error"), 400);
+      }
+    };
+    $("alertInput").onkeydown = (e) => { if(e.key === "Enter") $("alertOkBtn").click(); };
+
+    // --- FIREBASE LOGO UPLOAD ---
+    onValue(ref(db, 'settings/logo'), (snap) => {
+      const url = snap.val();
+      if(url) {
+        $("logoImg").src = url;
+        $("logoImg").style.display = "block";
+        $("logoText").style.display = "none";
+      }
+    });
+
+    $("logoArea").onclick = () => {
+      if(isUnlocked) $("logoInput").click();
+      else handleLockClick();
+    };
+
+    $("logoInput").onchange = (e) => {
+      const file = e.target.files[0];
+      if(!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          // COMPRESS
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_SIZE = 150;
+          let w = img.width, h = img.height;
+          
+          if (w > h) { if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; } } 
+          else { if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; } }
+          
+          canvas.width = w; canvas.height = h;
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/png');
+          set(ref(db, 'settings/logo'), dataUrl);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // --- DB SYNC ---
+    onValue(ref(db, ".info/connected"), (s) => {
+      $("statusInd").className = s.val() ? "status-ind online" : "status-ind offline";
+      $("statusTxt").textContent = s.val() ? "Online" : "Offline";
+    });
+
+    onValue(ref(db), (snap) => {
+      const val = snap.val() || {};
+      data.registrations = val.registrations || {};
+      data.sponsors = val.sponsors || {};
+      data.expenditures = val.expenditures || {};
+      renderAll();
+      updateStats();
+    });
+
+    // --- RENDER ---
+    function renderAll() {
+      renderTable('registrations');
+      renderTable('sponsors');
+      renderExpTable();
+    }
+
+    function renderTable(type) {
+      const tbody = $(`tbody-${type}`);
+      const search = $(`search-${type}`).value.toLowerCase();
+      tbody.innerHTML = '';
+
+      Object.entries(data[type]).forEach(([key, item]) => {
+        if(search && !(item.name||'').toLowerCase().includes(search)) return;
+        const tr = document.createElement('tr');
+        if(type === 'registrations') {
+          const st = item.passStatus || 'Not Given';
+          const cls = st === 'Given' ? 'given' : 'not-given';
+          tr.innerHTML = `<td>${item.name}</td><td>${item.phone||'-'}</td><td>${formatMoney(item.amount)}</td>
+            <td class="pass-col"><span class="pill ${cls}" style="cursor:pointer" onclick="togglePass('${key}','${st}')">${st}</span></td><td>${item.date}</td>`;
+        } else {
+          tr.innerHTML = `<td>${item.name}</td><td>${item.contact||'-'}</td><td>${formatMoney(item.amount)}</td><td>${item.date}</td>`;
+        }
+        const td = document.createElement('td'); td.className="admin-only";
+        td.innerHTML = `<button class="btn icon" style="color:var(--bad)" onclick="deleteItem('${type}','${key}')">🗑️</button>`;
+        tr.appendChild(td); tbody.appendChild(tr);
+      });
+    }
+
+    function renderExpTable() {
+      const tbody = $("tbody-expenditures");
+      const search = $("search-expenditures").value.toLowerCase();
+      tbody.innerHTML = '';
+      Object.entries(data.expenditures).forEach(([key, item]) => {
+        if(search && !(item.name||'').toLowerCase().includes(search)) return;
+        const total = Number(item.totalCost||0);
+        const paid = item.payments ? Object.values(item.payments).reduce((s,p)=>s+Number(p.amount),0) : 0;
+        const due = total - paid;
+        let st = paid >= total && total > 0 ? "Paid" : paid > 0 ? "Partial" : "Due";
+        let cls = st==="Paid"?"done":st==="Partial"?"part":"due";
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${item.name} <button class="btn icon" style="font-size:10px" onclick="openHist('${key}','${item.name}')">📜</button></td>
+          <td>${formatMoney(total)}</td><td class="text-good">${formatMoney(paid)}</td><td class="text-bad">${formatMoney(due)}</td>
+          <td><span class="pill ${cls}">${st}</span></td>
+        `;
+        const td = document.createElement('td'); td.className="admin-only";
+        td.innerHTML = `<button class="btn icon" onclick="openPay('${key}','${item.name}')">➕</button> <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('expenditures','${key}')">🗑️</button>`;
+        tr.appendChild(td); tbody.appendChild(tr);
+      });
+    }
+
+    function updateStats() {
+      const reg = Object.values(data.registrations).reduce((s,i)=>s+Number(i.amount||0),0);
+      const spon = Object.values(data.sponsors).reduce((s,i)=>s+Number(i.amount||0),0);
+      let paidOut = 0, estTotal = 0;
+      Object.values(data.expenditures).forEach(e => {
+        estTotal += Number(e.totalCost||0);
+        if(e.payments) paidOut += Object.values(e.payments).reduce((s,p)=>s+Number(p.amount),0);
+      });
+      $("val-reg").textContent = formatMoney(reg);
+      $("val-spon").textContent = formatMoney(spon);
+      $("val-paid").textContent = formatMoney(paidOut);
+      $("val-due").textContent = formatMoney(estTotal - paidOut);
+      $("val-net").textContent = formatMoney((reg+spon) - paidOut);
+    }
+
+    // --- ACTIONS ---
+    window.togglePass = (key, st) => { if(isUnlocked) update(ref(db, `registrations/${key}`), { passStatus: st==='Given'?'Not Given':'Given' }); else handleLockClick(); };
+    window.deleteItem = (t, k) => { if(isUnlocked && confirm("Delete?")) remove(ref(db, `${t}/${k}`)); };
+    
+    window.openModal = (type) => {
+      if(!isUnlocked) return handleLockClick();
+      $("mainModal").classList.add("open"); $("modalTitle").textContent = `Add ${type}`;
+      let html = "";
+      if(type==='registrations') html=`<div class="form-group"><label>Name</label><input id="i-name" class="form-control"></div><div class="form-group"><label>Phone</label><input id="i-phone" class="form-control"></div><div class="form-group"><label>Pass</label><select id="i-pass" class="form-control"><option>Not Given</option><option>Given</option></select></div><div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>`;
+      if(type==='sponsors') html=`<div class="form-group"><label>Org</label><input id="i-name" class="form-control"></div><div class="form-group"><label>Contact</label><input id="i-cont" class="form-control"></div><div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>`;
+      if(type==='expenditures') html=`<div class="form-group"><label>Vendor</label><input id="i-name" class="form-control"></div><div class="form-group"><label>Total Cost</label><input type="number" id="i-amt" class="form-control"></div>`;
+      if(type!=='expenditures') html+=`<div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>`;
+      
+      $("modalBody").innerHTML = html;
+      $("modalSaveBtn").onclick = () => {
+        const payload = { name: $("i-name").value };
+        if(type==='expenditures') payload.totalCost = Number($("i-amt").value);
+        else { payload.amount = Number($("i-amt").value); payload.date = $("i-date").value; }
+        if(type==='registrations') { payload.phone=$("i-phone").value; payload.passStatus=$("i-pass").value; }
+        if(type==='sponsors') payload.contact=$("i-cont").value;
+        if(!payload.name) return;
+        push(ref(db, type), payload); closeModals();
+      };
+    };
+
+    window.openPay = (key, name) => {
+      if(!isUnlocked) return handleLockClick();
+      currentExpId = key; $("payVendorName").textContent = name; $("payDate").value = today(); $("payModal").classList.add("open");
+    };
+    $("confirmPayBtn").onclick = () => {
+      const amt = Number($("payAmount").value);
+      if(amt) push(ref(db, `expenditures/${currentExpId}/payments`), { amount: amt, date: $("payDate").value });
+      closeModals();
+    };
+
+    window.openHist = (key, name) => {
+      $("historyModal").classList.add("open"); $("histVendorName").textContent = name;
+      const tb = $("historyBody"); tb.innerHTML = "";
+      const p = data.expenditures[key].payments || {};
+      if(Object.keys(p).length === 0) tb.innerHTML = "<tr><td colspan=2>No payments</td></tr>";
+      Object.values(p).forEach(i => tb.innerHTML += `<tr><td>${i.date}</td><td>${formatMoney(i.amount)}</td></tr>`);
+    };
+
+    window.closeModals = () => document.querySelectorAll('.modal-overlay').forEach(e => e.classList.remove("open"));
+    
+    // Global Listeners
+    $("printBtn").onclick = () => window.print();
+    $("themeBtn").onclick = () => { const el=document.documentElement; el.setAttribute('data-theme', el.getAttribute('data-theme')==='dark'?'light':'dark'); };
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+      document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active')); $(`panel-${t.dataset.target}`).classList.add('active');
+    }));
+    ['registrations','sponsors','expenditures'].forEach(t => $(`search-${t}`).addEventListener('input', () => t==='expenditures'?renderExpTable():renderTable(t)));
+  </script>
+</body>
+</html>
