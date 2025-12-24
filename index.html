@@ -192,7 +192,7 @@
     <!-- Stats -->
     <div class="stats">
       <div class="stat-card"><div class="stat-label">Registrations</div><div class="stat-val text-good" id="val-reg">₹0</div></div>
-      <div class="stat-card"><div class="stat-label">Sponsors</div><div class="stat-val text-warn" id="val-spon">₹0</div></div>
+      <div class="stat-card"><div class="stat-label">Sponsors Received</div><div class="stat-val text-warn" id="val-spon">₹0</div></div>
       <div class="stat-card"><div class="stat-label">Paid Out</div><div class="stat-val text-bad" id="val-paid">₹0</div></div>
       <div class="stat-card"><div class="stat-label">Due Out</div><div class="stat-val" id="val-due">₹0</div></div>
       <div class="stat-card"><div class="stat-label">Net Balance</div><div class="stat-val" id="val-net">₹0</div></div>
@@ -203,7 +203,6 @@
       <button class="tab active" data-target="registrations">Registrations</button>
       <button class="tab" data-target="sponsors">Sponsors</button>
       <button class="tab" data-target="expenditures">Expenditures</button>
-      <!-- NEW EXTRA TAB -->
       <button class="tab" data-target="extras">Extras</button>
     </div>
 
@@ -235,7 +234,16 @@
         <button class="btn primary admin-only" onclick="openModal('sponsors')">+ New Sponsor</button>
       </div>
       <table>
-        <thead><tr><th>Organization</th><th>Contact</th><th>Amount</th><th>Date</th><th class="admin-only">Actions</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Organization / Name</th>
+            <th>Total Pledged</th>
+            <th>Paid</th>
+            <th>Due</th>
+            <th>Status</th>
+            <th class="admin-only">Actions</th>
+          </tr>
+        </thead>
         <tbody id="tbody-sponsors"></tbody>
       </table>
     </section>
@@ -252,7 +260,7 @@
       </table>
     </section>
 
-    <!-- Panel: Extras (NEW) -->
+    <!-- Panel: Extras -->
     <section id="panel-extras" class="panel">
       <div class="toolbar">
         <input class="search-box" id="search-extras" placeholder="Search extras...">
@@ -306,7 +314,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <h3>Add Payment</h3>
-        <p id="payVendorName">Vendor Name</p>
+        <p id="payVendorName">Vendor/Sponsor Name</p>
       </div>
       <div class="modal-body">
         <div class="form-group"><label>Amount</label><input type="number" id="payAmount" class="form-control"></div>
@@ -324,7 +332,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <h3>History</h3>
-        <p id="histVendorName">Vendor Name</p>
+        <p id="histVendorName">Vendor/Sponsor Name</p>
       </div>
       <div class="modal-body">
         <div style="max-height:250px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
@@ -360,7 +368,8 @@
     const ADMIN_PASS = "9733";
     let isUnlocked = false;
     let data = { registrations: {}, sponsors: {}, expenditures: {}, extras: {} };
-    let currentExpId = null;
+    let currentPayId = null;
+    let currentPayType = null; // 'expenditures' or 'sponsors'
 
     // --- HELPERS ---
     const $ = (id) => document.getElementById(id);
@@ -420,15 +429,12 @@
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
-          // COMPRESS
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           const MAX_SIZE = 150;
           let w = img.width, h = img.height;
-          
           if (w > h) { if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; } } 
           else { if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; } }
-          
           canvas.width = w; canvas.height = h;
           ctx.drawImage(img, 0, 0, w, h);
           const dataUrl = canvas.toDataURL('image/png');
@@ -486,7 +492,29 @@
             <td>${item.date}</td>
           `;
         } else if(type === 'sponsors') {
-          tr.innerHTML = `<td>${item.name}</td><td>${item.contact||'-'}</td><td>${formatMoney(item.amount)}</td><td>${item.date}</td>`;
+          // Sponsor Table with Paid/Due logic
+          const total = Number(item.amount || 0); // Amount field is Total Pledged
+          const paid = item.payments ? Object.values(item.payments).reduce((s,p)=>s+Number(p.amount),0) : 0;
+          const due = total - paid;
+          let st = paid >= total && total > 0 ? "Paid" : paid > 0 ? "Partial" : "Due";
+          let cls = st==="Paid"?"done":st==="Partial"?"part":"due";
+
+          tr.innerHTML = `
+            <td>${item.name}<div style="font-size:11px;color:var(--muted)">${item.contact||''}</div>
+                <button class="btn icon" style="font-size:10px" onclick="openHist('sponsors', '${key}','${item.name}')">📜</button>
+            </td>
+            <td>${formatMoney(total)}</td>
+            <td class="text-good">${formatMoney(paid)}</td>
+            <td class="text-bad">${formatMoney(due)}</td>
+            <td><span class="pill ${cls}">${st}</span></td>
+          `;
+          
+          // Action buttons for Sponsor
+          const tdAct = document.createElement('td'); tdAct.className="admin-only";
+          tdAct.innerHTML = `<button class="btn icon" onclick="openPay('sponsors', '${key}','${item.name}')">➕</button> <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('${type}','${key}')">🗑️</button>`;
+          tr.appendChild(tdAct);
+          tbody.appendChild(tr);
+          return; // Stop here for sponsors since we manually added actions
         } else if(type === 'extras') {
           tr.innerHTML = `<td>${item.title}</td><td>${item.details||'-'}</td><td>${item.date}</td>`;
         }
@@ -511,29 +539,36 @@
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${item.name} <button class="btn icon" style="font-size:10px" onclick="openHist('${key}','${item.name}')">📜</button></td>
+          <td>${item.name} <button class="btn icon" style="font-size:10px" onclick="openHist('expenditures', '${key}','${item.name}')">📜</button></td>
           <td>${formatMoney(total)}</td><td class="text-good">${formatMoney(paid)}</td><td class="text-bad">${formatMoney(due)}</td>
           <td><span class="pill ${cls}">${st}</span></td>
         `;
         const td = document.createElement('td'); td.className="admin-only";
-        td.innerHTML = `<button class="btn icon" onclick="openPay('${key}','${item.name}')">➕</button> <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('expenditures','${key}')">🗑️</button>`;
+        td.innerHTML = `<button class="btn icon" onclick="openPay('expenditures', '${key}','${item.name}')">➕</button> <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('expenditures','${key}')">🗑️</button>`;
         tr.appendChild(td); tbody.appendChild(tr);
       });
     }
 
     function updateStats() {
       const reg = Object.values(data.registrations).reduce((s,i)=>s+Number(i.amount||0),0);
-      const spon = Object.values(data.sponsors).reduce((s,i)=>s+Number(i.amount||0),0);
+      
+      // Calculate Sponsors PAID Amount (Not Pledged)
+      let sponPaid = 0;
+      Object.values(data.sponsors).forEach(s => {
+          if(s.payments) sponPaid += Object.values(s.payments).reduce((acc, p) => acc + Number(p.amount), 0);
+      });
+
       let paidOut = 0, estTotal = 0;
       Object.values(data.expenditures).forEach(e => {
         estTotal += Number(e.totalCost||0);
         if(e.payments) paidOut += Object.values(e.payments).reduce((s,p)=>s+Number(p.amount),0);
       });
+      
       $("val-reg").textContent = formatMoney(reg);
-      $("val-spon").textContent = formatMoney(spon);
+      $("val-spon").textContent = formatMoney(sponPaid); // Shows Actual Cash Received
       $("val-paid").textContent = formatMoney(paidOut);
       $("val-due").textContent = formatMoney(estTotal - paidOut);
-      $("val-net").textContent = formatMoney((reg+spon) - paidOut);
+      $("val-net").textContent = formatMoney((reg+sponPaid) - paidOut);
     }
 
     // --- ACTIONS ---
@@ -552,9 +587,9 @@
         <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
       `;
       if(type==='sponsors') html=`
-        <div class="form-group"><label>Org</label><input id="i-name" class="form-control"></div>
+        <div class="form-group"><label>Organization</label><input id="i-name" class="form-control"></div>
         <div class="form-group"><label>Contact</label><input id="i-cont" class="form-control"></div>
-        <div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>
+        <div class="form-group"><label>Total Pledged Amount</label><input type="number" id="i-amt" class="form-control"></div>
         <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
       `;
       if(type==='expenditures') html=`
@@ -597,20 +632,27 @@
       };
     };
 
-    window.openPay = (key, name) => {
+    window.openPay = (type, key, name) => {
       if(!isUnlocked) return handleLockClick();
-      currentExpId = key; $("payVendorName").textContent = name; $("payDate").value = today(); $("payModal").classList.add("open");
+      currentPayType = type;
+      currentPayId = key; 
+      $("payVendorName").textContent = name; 
+      $("payDate").value = today(); 
+      $("payModal").classList.add("open");
     };
+
     $("confirmPayBtn").onclick = () => {
       const amt = Number($("payAmount").value);
-      if(amt) push(ref(db, `expenditures/${currentExpId}/payments`), { amount: amt, date: $("payDate").value });
+      if(amt && currentPayType && currentPayId) {
+          push(ref(db, `${currentPayType}/${currentPayId}/payments`), { amount: amt, date: $("payDate").value });
+      }
       closeModals();
     };
 
-    window.openHist = (key, name) => {
+    window.openHist = (type, key, name) => {
       $("historyModal").classList.add("open"); $("histVendorName").textContent = name;
       const tb = $("historyBody"); tb.innerHTML = "";
-      const p = data.expenditures[key].payments || {};
+      const p = data[type][key].payments || {};
       if(Object.keys(p).length === 0) tb.innerHTML = "<tr><td colspan=2>No payments</td></tr>";
       Object.values(p).forEach(i => tb.innerHTML += `<tr><td>${i.date}</td><td>${formatMoney(i.amount)}</td></tr>`);
     };
