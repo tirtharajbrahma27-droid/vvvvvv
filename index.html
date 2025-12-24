@@ -164,7 +164,7 @@
       th, td { border: 1px solid #ccc; background: white !important; padding: 8px; }
       .pill { border: 1px solid #000; color: #000 !important; background: transparent !important; }
       
-      /* HIDE PASS & ACTIONS COLUMNS */
+      /* Hide Action/Pass columns on print */
       .pass-col, .admin-only { display: none !important; }
     }
   </style>
@@ -214,8 +214,18 @@
         <button class="btn primary admin-only" onclick="openModal('registrations')">+ New Registration</button>
       </div>
       <table>
-        <!-- Added pass-col class to header -->
-        <thead><tr><th>Name</th><th>Phone</th><th>Amount</th><th class="pass-col">Pass</th><th>Date</th><th class="admin-only">Actions</th></tr></thead>
+        <!-- Added Extra & Pass Column -->
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Amount</th>
+            <th>Extra</th>
+            <th class="pass-col">Pass</th>
+            <th>Date</th>
+            <th class="admin-only">Actions</th>
+          </tr>
+        </thead>
         <tbody id="tbody-registrations"></tbody>
       </table>
     </section>
@@ -451,9 +461,16 @@
         const tr = document.createElement('tr');
         if(type === 'registrations') {
           const st = item.passStatus || 'Not Given';
+          const extra = item.extraPeople || 0;
           const cls = st === 'Given' ? 'given' : 'not-given';
-          tr.innerHTML = `<td>${item.name}</td><td>${item.phone||'-'}</td><td>${formatMoney(item.amount)}</td>
-            <td class="pass-col"><span class="pill ${cls}" style="cursor:pointer" onclick="togglePass('${key}','${st}')">${st}</span></td><td>${item.date}</td>`;
+          tr.innerHTML = `
+            <td>${item.name}</td>
+            <td>${item.phone||'-'}</td>
+            <td>${formatMoney(item.amount)}</td>
+            <td>${extra}</td>
+            <td class="pass-col"><span class="pill ${cls}" style="cursor:pointer" onclick="togglePass('${key}','${st}')">${st}</span></td>
+            <td>${item.date}</td>
+          `;
         } else {
           tr.innerHTML = `<td>${item.name}</td><td>${item.contact||'-'}</td><td>${formatMoney(item.amount)}</td><td>${item.date}</td>`;
         }
@@ -510,18 +527,38 @@
       if(!isUnlocked) return handleLockClick();
       $("mainModal").classList.add("open"); $("modalTitle").textContent = `Add ${type}`;
       let html = "";
-      if(type==='registrations') html=`<div class="form-group"><label>Name</label><input id="i-name" class="form-control"></div><div class="form-group"><label>Phone</label><input id="i-phone" class="form-control"></div><div class="form-group"><label>Pass</label><select id="i-pass" class="form-control"><option>Not Given</option><option>Given</option></select></div><div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>`;
-      if(type==='sponsors') html=`<div class="form-group"><label>Org</label><input id="i-name" class="form-control"></div><div class="form-group"><label>Contact</label><input id="i-cont" class="form-control"></div><div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>`;
-      if(type==='expenditures') html=`<div class="form-group"><label>Vendor</label><input id="i-name" class="form-control"></div><div class="form-group"><label>Total Cost</label><input type="number" id="i-amt" class="form-control"></div>`;
-      if(type!=='expenditures') html+=`<div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>`;
+      if(type==='registrations') html=`
+        <div class="form-group"><label>Name</label><input id="i-name" class="form-control"></div>
+        <div class="form-group"><label>Phone</label><input id="i-phone" class="form-control"></div>
+        <div class="form-group"><label>Extra People</label><input type="number" id="i-extra" class="form-control" placeholder="0"></div>
+        <div class="form-group"><label>Pass</label><select id="i-pass" class="form-control"><option>Not Given</option><option>Given</option></select></div>
+        <div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
+      `;
+      if(type==='sponsors') html=`
+        <div class="form-group"><label>Org</label><input id="i-name" class="form-control"></div>
+        <div class="form-group"><label>Contact</label><input id="i-cont" class="form-control"></div>
+        <div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
+      `;
+      if(type==='expenditures') html=`
+        <div class="form-group"><label>Vendor</label><input id="i-name" class="form-control"></div>
+        <div class="form-group"><label>Total Cost</label><input type="number" id="i-amt" class="form-control"></div>
+      `;
       
       $("modalBody").innerHTML = html;
       $("modalSaveBtn").onclick = () => {
         const payload = { name: $("i-name").value };
         if(type==='expenditures') payload.totalCost = Number($("i-amt").value);
         else { payload.amount = Number($("i-amt").value); payload.date = $("i-date").value; }
-        if(type==='registrations') { payload.phone=$("i-phone").value; payload.passStatus=$("i-pass").value; }
+        
+        if(type==='registrations') { 
+          payload.phone=$("i-phone").value; 
+          payload.passStatus=$("i-pass").value; 
+          payload.extraPeople = Number($("i-extra").value) || 0;
+        }
         if(type==='sponsors') payload.contact=$("i-cont").value;
+        
         if(!payload.name) return;
         push(ref(db, type), payload); closeModals();
       };
