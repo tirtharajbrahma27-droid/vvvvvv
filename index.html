@@ -219,7 +219,6 @@
             <th>Name</th>
             <th>Phone</th>
             <th>Amount</th>
-            <th>Extra</th>
             <th class="pass-col">Pass</th>
             <th>Date</th>
             <th class="admin-only">Actions</th>
@@ -460,13 +459,13 @@
     function renderAll() {
       renderTable('registrations');
       renderTable('sponsors');
-      renderTable('extras'); // New Table
+      renderTable('extras');
       renderExpTable();
     }
 
     function renderTable(type) {
       const tbody = $(`tbody-${type}`);
-      if(!tbody) return; // safety
+      if(!tbody) return;
       const search = $(`search-${type}`).value.toLowerCase();
       tbody.innerHTML = '';
 
@@ -478,13 +477,11 @@
         
         if(type === 'registrations') {
           const st = item.passStatus || 'Not Given';
-          const extra = item.extraPeople || 0;
           const cls = st === 'Given' ? 'given' : 'not-given';
           tr.innerHTML = `
             <td>${item.name}</td>
             <td>${item.phone||'-'}</td>
             <td>${formatMoney(item.amount)}</td>
-            <td>${extra}</td>
             <td class="pass-col"><span class="pill ${cls}" style="cursor:pointer" onclick="togglePass('${key}','${st}')">${st}</span></td>
             <td>${item.date}</td>
           `;
@@ -550,7 +547,6 @@
       if(type==='registrations') html=`
         <div class="form-group"><label>Name</label><input id="i-name" class="form-control"></div>
         <div class="form-group"><label>Phone</label><input id="i-phone" class="form-control"></div>
-        <div class="form-group"><label>Extra People</label><input type="number" id="i-extra" class="form-control" placeholder="0"></div>
         <div class="form-group"><label>Pass</label><select id="i-pass" class="form-control"><option>Not Given</option><option>Given</option></select></div>
         <div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>
         <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
@@ -593,7 +589,6 @@
             if(type==='registrations') { 
               payload.phone=$("i-phone").value; 
               payload.passStatus=$("i-pass").value; 
-              payload.extraPeople = Number($("i-extra").value) || 0;
             }
             if(type==='sponsors') payload.contact=$("i-cont").value;
         }
