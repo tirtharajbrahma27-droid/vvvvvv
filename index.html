@@ -28,7 +28,7 @@
     /* --- BASE --- */
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); transition: background 0.4s ease, color 0.4s ease; overflow-x: hidden; }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; animation: fadeIn 0.8s ease; }
+    .wrap { max-width: 1300px; margin: 0 auto; padding: 20px; animation: fadeIn 0.8s ease; }
 
     /* --- HEADER --- */
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
@@ -65,17 +65,21 @@
     .btn.icon { padding: 10px; }
 
     /* --- STATS --- */
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px; }
     .stat-card { 
       background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); 
       animation: slideUp 0.6s var(--ease); animation-fill-mode: backwards;
     }
-    .stat-card:nth-child(1) { animation-delay: 0.1s; }
-    .stat-card:nth-child(2) { animation-delay: 0.2s; }
-    .stat-card:nth-child(3) { animation-delay: 0.3s; }
+    /* Staggered animation */
+    .stat-card:nth-child(1) { animation-delay: 0.05s; }
+    .stat-card:nth-child(2) { animation-delay: 0.1s; }
+    .stat-card:nth-child(3) { animation-delay: 0.15s; }
+    .stat-card:nth-child(4) { animation-delay: 0.2s; }
+    .stat-card:nth-child(5) { animation-delay: 0.25s; }
+    .stat-card:nth-child(6) { animation-delay: 0.3s; }
     
-    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
-    .stat-val { font-size: 26px; font-weight: 800; margin-top: 8px; }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 5px; }
+    .stat-val { font-size: 22px; font-weight: 800; margin-top: 5px; white-space: nowrap; }
     .text-good { color: var(--good); } .text-warn { color: var(--warn); } .text-bad { color: var(--bad); }
 
     /* --- TABS & TABLES --- */
@@ -193,6 +197,8 @@
     <div class="stats">
       <div class="stat-card"><div class="stat-label">Registrations</div><div class="stat-val text-good" id="val-reg">₹0</div></div>
       <div class="stat-card"><div class="stat-label">Sponsors Received</div><div class="stat-val text-warn" id="val-spon">₹0</div></div>
+      <!-- NEW BOX -->
+      <div class="stat-card"><div class="stat-label">Sponsors Due</div><div class="stat-val text-warn" id="val-spon-due">₹0</div></div>
       <div class="stat-card"><div class="stat-label">Paid Out</div><div class="stat-val text-bad" id="val-paid">₹0</div></div>
       <div class="stat-card"><div class="stat-label">Due Out</div><div class="stat-val" id="val-due">₹0</div></div>
       <div class="stat-card"><div class="stat-label">Net Balance</div><div class="stat-val" id="val-net">₹0</div></div>
@@ -369,7 +375,7 @@
     let isUnlocked = false;
     let data = { registrations: {}, sponsors: {}, expenditures: {}, extras: {} };
     let currentExpId = null;
-    let currentEditKey = null; // For editing
+    let currentEditKey = null; 
     let currentPayType = null; 
 
     // --- HELPERS ---
@@ -551,7 +557,11 @@
           <td><span class="pill ${cls}">${st}</span></td>
         `;
         const td = document.createElement('td'); td.className="admin-only";
-        td.innerHTML = `<button class="btn icon" onclick="openPay('expenditures', '${key}','${item.name}')">➕</button> <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('expenditures','${key}')">🗑️</button>`;
+        td.innerHTML = `
+          <button class="btn icon" onclick="openPay('expenditures', '${key}','${item.name}')">➕</button> 
+          <button class="btn icon" onclick="openModal('expenditures', '${key}')">✏️</button>
+          <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('expenditures','${key}')">🗑️</button>
+        `;
         tr.appendChild(td); tbody.appendChild(tr);
       });
     }
@@ -559,8 +569,10 @@
     function updateStats() {
       const reg = Object.values(data.registrations).reduce((s,i)=>s+Number(i.amount||0),0);
       
+      let sponTotal = 0;
       let sponPaid = 0;
       Object.values(data.sponsors).forEach(s => {
+          sponTotal += Number(s.amount || 0); // Pledged
           if(s.payments) sponPaid += Object.values(s.payments).reduce((acc, p) => acc + Number(p.amount), 0);
       });
 
@@ -572,6 +584,7 @@
       
       $("val-reg").textContent = formatMoney(reg);
       $("val-spon").textContent = formatMoney(sponPaid); 
+      $("val-spon-due").textContent = formatMoney(sponTotal - sponPaid); // NEW CALCULATION
       $("val-paid").textContent = formatMoney(paidOut);
       $("val-due").textContent = formatMoney(estTotal - paidOut);
       $("val-net").textContent = formatMoney((reg+sponPaid) - paidOut);
