@@ -79,10 +79,10 @@
     .text-good { color: var(--good); } .text-warn { color: var(--warn); } .text-bad { color: var(--bad); }
 
     /* --- TABS & TABLES --- */
-    .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border); overflow-x: auto; }
     .tab { 
       padding: 10px 24px; background: none; border: none; color: var(--muted); cursor: pointer; font-weight: 600; 
-      border-bottom: 3px solid transparent; transition: 0.3s; position: relative;
+      border-bottom: 3px solid transparent; transition: 0.3s; position: relative; white-space: nowrap;
     }
     .tab.active { color: var(--accent); border-color: var(--accent); }
 
@@ -163,8 +163,6 @@
       table { border: 1px solid #ddd; border-collapse: collapse; }
       th, td { border: 1px solid #ccc; background: white !important; padding: 8px; }
       .pill { border: 1px solid #000; color: #000 !important; background: transparent !important; }
-      
-      /* Hide Action/Pass columns on print */
       .pass-col, .admin-only { display: none !important; }
     }
   </style>
@@ -205,6 +203,8 @@
       <button class="tab active" data-target="registrations">Registrations</button>
       <button class="tab" data-target="sponsors">Sponsors</button>
       <button class="tab" data-target="expenditures">Expenditures</button>
+      <!-- NEW EXTRA TAB -->
+      <button class="tab" data-target="extras">Extras</button>
     </div>
 
     <!-- Panel: Registrations -->
@@ -214,7 +214,6 @@
         <button class="btn primary admin-only" onclick="openModal('registrations')">+ New Registration</button>
       </div>
       <table>
-        <!-- Added Extra & Pass Column -->
         <thead>
           <tr>
             <th>Name</th>
@@ -251,6 +250,18 @@
       <table>
         <thead><tr><th>Item / Vendor</th><th>Total Cost</th><th>Paid</th><th>Due</th><th>Status</th><th class="admin-only">Actions</th></tr></thead>
         <tbody id="tbody-expenditures"></tbody>
+      </table>
+    </section>
+
+    <!-- Panel: Extras (NEW) -->
+    <section id="panel-extras" class="panel">
+      <div class="toolbar">
+        <input class="search-box" id="search-extras" placeholder="Search extras...">
+        <button class="btn primary admin-only" onclick="openModal('extras')">+ New Extra</button>
+      </div>
+      <table>
+        <thead><tr><th>Title</th><th>Details</th><th>Date</th><th class="admin-only">Actions</th></tr></thead>
+        <tbody id="tbody-extras"></tbody>
       </table>
     </section>
   </div>
@@ -349,7 +360,7 @@
     // --- STATE ---
     const ADMIN_PASS = "9733";
     let isUnlocked = false;
-    let data = { registrations: {}, sponsors: {}, expenditures: {} };
+    let data = { registrations: {}, sponsors: {}, expenditures: {}, extras: {} };
     let currentExpId = null;
 
     // --- HELPERS ---
@@ -440,6 +451,7 @@
       data.registrations = val.registrations || {};
       data.sponsors = val.sponsors || {};
       data.expenditures = val.expenditures || {};
+      data.extras = val.extras || {};
       renderAll();
       updateStats();
     });
@@ -448,17 +460,22 @@
     function renderAll() {
       renderTable('registrations');
       renderTable('sponsors');
+      renderTable('extras'); // New Table
       renderExpTable();
     }
 
     function renderTable(type) {
       const tbody = $(`tbody-${type}`);
+      if(!tbody) return; // safety
       const search = $(`search-${type}`).value.toLowerCase();
       tbody.innerHTML = '';
 
       Object.entries(data[type]).forEach(([key, item]) => {
-        if(search && !(item.name||'').toLowerCase().includes(search)) return;
+        let name = item.name || item.title || '';
+        if(search && !name.toLowerCase().includes(search)) return;
+        
         const tr = document.createElement('tr');
+        
         if(type === 'registrations') {
           const st = item.passStatus || 'Not Given';
           const extra = item.extraPeople || 0;
@@ -471,9 +488,12 @@
             <td class="pass-col"><span class="pill ${cls}" style="cursor:pointer" onclick="togglePass('${key}','${st}')">${st}</span></td>
             <td>${item.date}</td>
           `;
-        } else {
+        } else if(type === 'sponsors') {
           tr.innerHTML = `<td>${item.name}</td><td>${item.contact||'-'}</td><td>${formatMoney(item.amount)}</td><td>${item.date}</td>`;
+        } else if(type === 'extras') {
+          tr.innerHTML = `<td>${item.title}</td><td>${item.details||'-'}</td><td>${item.date}</td>`;
         }
+
         const td = document.createElement('td'); td.className="admin-only";
         td.innerHTML = `<button class="btn icon" style="color:var(--bad)" onclick="deleteItem('${type}','${key}')">🗑️</button>`;
         tr.appendChild(td); tbody.appendChild(tr);
@@ -545,21 +565,39 @@
         <div class="form-group"><label>Vendor</label><input id="i-name" class="form-control"></div>
         <div class="form-group"><label>Total Cost</label><input type="number" id="i-amt" class="form-control"></div>
       `;
+      if(type==='extras') html=`
+        <div class="form-group"><label>Title</label><input id="i-title" class="form-control"></div>
+        <div class="form-group"><label>Details</label><input id="i-details" class="form-control"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
+      `;
       
       $("modalBody").innerHTML = html;
       $("modalSaveBtn").onclick = () => {
-        const payload = { name: $("i-name").value };
-        if(type==='expenditures') payload.totalCost = Number($("i-amt").value);
-        else { payload.amount = Number($("i-amt").value); payload.date = $("i-date").value; }
+        const payload = {};
         
-        if(type==='registrations') { 
-          payload.phone=$("i-phone").value; 
-          payload.passStatus=$("i-pass").value; 
-          payload.extraPeople = Number($("i-extra").value) || 0;
+        if(type==='extras') {
+             payload.title = $("i-title").value;
+             payload.details = $("i-details").value;
+             payload.date = $("i-date").value;
+             if(!payload.title) return;
+        } else {
+            payload.name = $("i-name").value;
+            if(!payload.name) return;
+            
+            if(type==='expenditures') payload.totalCost = Number($("i-amt").value);
+            else { 
+                payload.amount = Number($("i-amt").value); 
+                payload.date = $("i-date").value; 
+            }
+            
+            if(type==='registrations') { 
+              payload.phone=$("i-phone").value; 
+              payload.passStatus=$("i-pass").value; 
+              payload.extraPeople = Number($("i-extra").value) || 0;
+            }
+            if(type==='sponsors') payload.contact=$("i-cont").value;
         }
-        if(type==='sponsors') payload.contact=$("i-cont").value;
         
-        if(!payload.name) return;
         push(ref(db, type), payload); closeModals();
       };
     };
@@ -591,7 +629,7 @@
       document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
       document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active')); $(`panel-${t.dataset.target}`).classList.add('active');
     }));
-    ['registrations','sponsors','expenditures'].forEach(t => $(`search-${t}`).addEventListener('input', () => t==='expenditures'?renderExpTable():renderTable(t)));
+    ['registrations','sponsors','expenditures','extras'].forEach(t => $(`search-${t}`).addEventListener('input', () => t==='expenditures'?renderExpTable():renderTable(t)));
   </script>
 </body>
 </html>
