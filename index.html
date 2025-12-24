@@ -293,7 +293,7 @@
     </div>
   </div>
 
-  <!-- 2. ADD NEW MODAL -->
+  <!-- 2. ADD/EDIT MODAL -->
   <div id="mainModal" class="modal-overlay">
     <div class="modal-window">
       <div class="modal-header">
@@ -314,7 +314,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <h3>Add Payment</h3>
-        <p id="payVendorName">Vendor/Sponsor Name</p>
+        <p id="payVendorName">Vendor Name</p>
       </div>
       <div class="modal-body">
         <div class="form-group"><label>Amount</label><input type="number" id="payAmount" class="form-control"></div>
@@ -332,7 +332,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <h3>History</h3>
-        <p id="histVendorName">Vendor/Sponsor Name</p>
+        <p id="histVendorName">Vendor Name</p>
       </div>
       <div class="modal-body">
         <div style="max-height:250px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
@@ -368,8 +368,9 @@
     const ADMIN_PASS = "9733";
     let isUnlocked = false;
     let data = { registrations: {}, sponsors: {}, expenditures: {}, extras: {} };
-    let currentPayId = null;
-    let currentPayType = null; // 'expenditures' or 'sponsors'
+    let currentExpId = null;
+    let currentEditKey = null; // For editing
+    let currentPayType = null; 
 
     // --- HELPERS ---
     const $ = (id) => document.getElementById(id);
@@ -429,12 +430,15 @@
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
+          // COMPRESS
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           const MAX_SIZE = 150;
           let w = img.width, h = img.height;
+          
           if (w > h) { if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; } } 
           else { if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; } }
+          
           canvas.width = w; canvas.height = h;
           ctx.drawImage(img, 0, 0, w, h);
           const dataUrl = canvas.toDataURL('image/png');
@@ -492,8 +496,8 @@
             <td>${item.date}</td>
           `;
         } else if(type === 'sponsors') {
-          // Sponsor Table with Paid/Due logic
-          const total = Number(item.amount || 0); // Amount field is Total Pledged
+          // Sponsor Table with Edit Button
+          const total = Number(item.amount || 0);
           const paid = item.payments ? Object.values(item.payments).reduce((s,p)=>s+Number(p.amount),0) : 0;
           const due = total - paid;
           let st = paid >= total && total > 0 ? "Paid" : paid > 0 ? "Partial" : "Due";
@@ -509,12 +513,15 @@
             <td><span class="pill ${cls}">${st}</span></td>
           `;
           
-          // Action buttons for Sponsor
           const tdAct = document.createElement('td'); tdAct.className="admin-only";
-          tdAct.innerHTML = `<button class="btn icon" onclick="openPay('sponsors', '${key}','${item.name}')">➕</button> <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('${type}','${key}')">🗑️</button>`;
+          tdAct.innerHTML = `
+            <button class="btn icon" title="Add Payment" onclick="openPay('sponsors', '${key}','${item.name}')">➕</button>
+            <button class="btn icon" title="Edit Sponsor" onclick="openModal('sponsors', '${key}')">✏️</button>
+            <button class="btn icon" style="color:var(--bad)" onclick="deleteItem('${type}','${key}')">🗑️</button>
+          `;
           tr.appendChild(tdAct);
           tbody.appendChild(tr);
-          return; // Stop here for sponsors since we manually added actions
+          return; 
         } else if(type === 'extras') {
           tr.innerHTML = `<td>${item.title}</td><td>${item.details||'-'}</td><td>${item.date}</td>`;
         }
@@ -552,7 +559,6 @@
     function updateStats() {
       const reg = Object.values(data.registrations).reduce((s,i)=>s+Number(i.amount||0),0);
       
-      // Calculate Sponsors PAID Amount (Not Pledged)
       let sponPaid = 0;
       Object.values(data.sponsors).forEach(s => {
           if(s.payments) sponPaid += Object.values(s.payments).reduce((acc, p) => acc + Number(p.amount), 0);
@@ -565,7 +571,7 @@
       });
       
       $("val-reg").textContent = formatMoney(reg);
-      $("val-spon").textContent = formatMoney(sponPaid); // Shows Actual Cash Received
+      $("val-spon").textContent = formatMoney(sponPaid); 
       $("val-paid").textContent = formatMoney(paidOut);
       $("val-due").textContent = formatMoney(estTotal - paidOut);
       $("val-net").textContent = formatMoney((reg+sponPaid) - paidOut);
@@ -575,31 +581,39 @@
     window.togglePass = (key, st) => { if(isUnlocked) update(ref(db, `registrations/${key}`), { passStatus: st==='Given'?'Not Given':'Given' }); else handleLockClick(); };
     window.deleteItem = (t, k) => { if(isUnlocked && confirm("Delete?")) remove(ref(db, `${t}/${k}`)); };
     
-    window.openModal = (type) => {
+    // MODAL LOGIC (ADD + EDIT)
+    window.openModal = (type, editKey = null) => {
       if(!isUnlocked) return handleLockClick();
-      $("mainModal").classList.add("open"); $("modalTitle").textContent = `Add ${type}`;
+      $("mainModal").classList.add("open"); 
+      $("modalTitle").textContent = editKey ? `Edit ${type.slice(0,-1)}` : `Add ${type.slice(0,-1)}`;
+      currentEditKey = editKey;
+
+      // Get values if editing
+      let val = {};
+      if(editKey) val = data[type][editKey];
+
       let html = "";
       if(type==='registrations') html=`
-        <div class="form-group"><label>Name</label><input id="i-name" class="form-control"></div>
-        <div class="form-group"><label>Phone</label><input id="i-phone" class="form-control"></div>
-        <div class="form-group"><label>Pass</label><select id="i-pass" class="form-control"><option>Not Given</option><option>Given</option></select></div>
-        <div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control"></div>
-        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
+        <div class="form-group"><label>Name</label><input id="i-name" class="form-control" value="${val.name||''}"></div>
+        <div class="form-group"><label>Phone</label><input id="i-phone" class="form-control" value="${val.phone||''}"></div>
+        <div class="form-group"><label>Pass</label><select id="i-pass" class="form-control"><option ${val.passStatus==='Not Given'?'selected':''}>Not Given</option><option ${val.passStatus==='Given'?'selected':''}>Given</option></select></div>
+        <div class="form-group"><label>Amount</label><input type="number" id="i-amt" class="form-control" value="${val.amount||''}"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${val.date||today()}" class="form-control"></div>
       `;
       if(type==='sponsors') html=`
-        <div class="form-group"><label>Organization</label><input id="i-name" class="form-control"></div>
-        <div class="form-group"><label>Contact</label><input id="i-cont" class="form-control"></div>
-        <div class="form-group"><label>Total Pledged Amount</label><input type="number" id="i-amt" class="form-control"></div>
-        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
+        <div class="form-group"><label>Organization</label><input id="i-name" class="form-control" value="${val.name||''}"></div>
+        <div class="form-group"><label>Contact</label><input id="i-cont" class="form-control" value="${val.contact||''}"></div>
+        <div class="form-group"><label>Total Pledged Amount</label><input type="number" id="i-amt" class="form-control" value="${val.amount||''}"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${val.date||today()}" class="form-control"></div>
       `;
       if(type==='expenditures') html=`
-        <div class="form-group"><label>Vendor</label><input id="i-name" class="form-control"></div>
-        <div class="form-group"><label>Total Cost</label><input type="number" id="i-amt" class="form-control"></div>
+        <div class="form-group"><label>Vendor</label><input id="i-name" class="form-control" value="${val.name||''}"></div>
+        <div class="form-group"><label>Total Cost</label><input type="number" id="i-amt" class="form-control" value="${val.totalCost||''}"></div>
       `;
       if(type==='extras') html=`
-        <div class="form-group"><label>Title</label><input id="i-title" class="form-control"></div>
-        <div class="form-group"><label>Details</label><input id="i-details" class="form-control"></div>
-        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${today()}" class="form-control"></div>
+        <div class="form-group"><label>Title</label><input id="i-title" class="form-control" value="${val.title||''}"></div>
+        <div class="form-group"><label>Details</label><input id="i-details" class="form-control" value="${val.details||''}"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="i-date" value="${val.date||today()}" class="form-control"></div>
       `;
       
       $("modalBody").innerHTML = html;
@@ -628,14 +642,19 @@
             if(type==='sponsors') payload.contact=$("i-cont").value;
         }
         
-        push(ref(db, type), payload); closeModals();
+        if(currentEditKey) {
+            update(ref(db, `${type}/${currentEditKey}`), payload);
+        } else {
+            push(ref(db, type), payload);
+        }
+        closeModals();
       };
     };
 
     window.openPay = (type, key, name) => {
       if(!isUnlocked) return handleLockClick();
       currentPayType = type;
-      currentPayId = key; 
+      currentExpId = key; // reusing var name
       $("payVendorName").textContent = name; 
       $("payDate").value = today(); 
       $("payModal").classList.add("open");
@@ -643,8 +662,8 @@
 
     $("confirmPayBtn").onclick = () => {
       const amt = Number($("payAmount").value);
-      if(amt && currentPayType && currentPayId) {
-          push(ref(db, `${currentPayType}/${currentPayId}/payments`), { amount: amt, date: $("payDate").value });
+      if(amt && currentPayType && currentExpId) {
+          push(ref(db, `${currentPayType}/${currentExpId}/payments`), { amount: amt, date: $("payDate").value });
       }
       closeModals();
     };
